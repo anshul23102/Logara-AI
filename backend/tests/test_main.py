@@ -5,7 +5,7 @@ from main import app
 
 client = TestClient(app)
 
-@patch("utils.queue.redis_client.lpush")
+@patch("utils.queue.redis_client.lpush_bounded")
 def test_ingest_success_queued(mock_lpush):
     # Setup
     test_log = "[2026-05-17 21:16:00] INFO: Database connection established successfully user_id=123"
@@ -35,7 +35,7 @@ def test_ingest_success_queued(mock_lpush):
     assert payload["parsed"]["level"] == "INFO"
     assert payload["parsed"]["message"] == "Database connection established successfully user_id=123"
 
-@patch("utils.queue.redis_client.lpush")
+@patch("utils.queue.redis_client.lpush_bounded")
 def test_ingest_redis_failure(mock_lpush):
     # Setup a mock to simulate Redis connection failure
     mock_lpush.side_effect = Exception("Redis is down")

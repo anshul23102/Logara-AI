@@ -110,7 +110,7 @@ def test_ingest_whitespace_log():
     assert response.status_code == 400
     assert response.json()["detail"] == "Log message cannot be empty"
 
-@patch("utils.queue.redis_client.lpush")
+@patch("utils.queue.redis_client.lpush_bounded")
 def test_ingest_raw_fallback(mock_lpush):
     response = client.post("/ingest", json={"log_data": "this is not standard log format"})
     assert response.status_code == 200
@@ -121,7 +121,7 @@ def test_ingest_raw_fallback(mock_lpush):
     assert "structured_output" in res_data
     mock_lpush.assert_called_once()
 
-@patch("utils.queue.redis_client.lpush")
+@patch("utils.queue.redis_client.lpush_bounded")
 def test_ingest_valid_standard_log(mock_lpush):
     response = client.post("/ingest", json={"log_data": "[2026-05-16 10:30:00] ERROR: auth-service failed"})
     assert response.status_code == 200
@@ -132,7 +132,7 @@ def test_ingest_valid_standard_log(mock_lpush):
     assert data["metadata"]["service"] == "auth-service"
 
 
-@patch("utils.queue.redis_client.lpush")
+@patch("utils.queue.redis_client.lpush_bounded")
 def test_ingest_structured_log(mock_lpush):
     response = client.post(
         "/ingest",
@@ -163,7 +163,7 @@ def test_ingest_structured_log(mock_lpush):
     assert "structured_input" in queued_payload
 
 
-@patch("utils.queue.redis_client.lpush")
+@patch("utils.queue.redis_client.lpush_bounded")
 def test_ingest_batch_structured_logs(mock_lpush):
     response = client.post(
         "/ingest",
@@ -221,7 +221,7 @@ def test_ingest_structured_requires_service_id():
     assert response.status_code == 422
 
 
-@patch("utils.queue.redis_client.lpush")
+@patch("utils.queue.redis_client.lpush_bounded")
 def test_ingest_structured_accepts_service_id_field(mock_lpush):
     response = client.post(
         "/ingest",
@@ -312,7 +312,7 @@ def test_semantic_search_empty_query():
     assert "Search query cannot be empty" in response.json()["detail"]
 
 
-@patch("integrations.redis.redis_client.lpush")
+@patch("integrations.redis.redis_client.lpush_bounded")
 def test_batch_ingestion_partial_success(mock_lpush):
     payload = {
         "logs": [
@@ -347,7 +347,7 @@ def test_batch_ingestion_partial_success(mock_lpush):
     assert data["failures"][0]["record_index"] == 1
 
 
-@patch("integrations.redis.redis_client.lpush")
+@patch("integrations.redis.redis_client.lpush_bounded")
 def test_batch_ingestion_full_success(mock_lpush):
     payload = {
         "logs": [

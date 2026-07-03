@@ -336,9 +336,10 @@ class IngestionService:
         settings = get_settings()
 
         try:
-            redis_client.lpush(
+            redis_client.lpush_bounded(
                 settings.redis_queue_name,
                 json.dumps(payload.model_dump()),
+                max_length=settings.redis_max_queue_length,
             )
 
         except Exception as exc:
