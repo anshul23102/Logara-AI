@@ -101,18 +101,18 @@ def test_health_ollama_unhealthy(mock_ollama_health, mock_qdrant_get_collections
     assert "error" in data["services"]["ollama"]
 
 def test_ingest_empty_log():
-    response = client.post("/ingest", json={"log_data": ""})
+    response = client.post("/ingest", headers={"X-API-Key": "test-api-key-12345"}, json={"log_data": ""})
     assert response.status_code == 400
     assert response.json()["detail"] == "Log message cannot be empty"
 
 def test_ingest_whitespace_log():
-    response = client.post("/ingest", json={"log_data": "   "})
+    response = client.post("/ingest", headers={"X-API-Key": "test-api-key-12345"}, json={"log_data": "   "})
     assert response.status_code == 400
     assert response.json()["detail"] == "Log message cannot be empty"
 
 @patch("utils.queue.redis_client.lpush_bounded")
 def test_ingest_raw_fallback(mock_lpush):
-    response = client.post("/ingest", json={"log_data": "this is not standard log format"})
+    response = client.post("/ingest", headers={"X-API-Key": "test-api-key-12345"}, json={"log_data": "this is not standard log format"})
     assert response.status_code == 200
     res_data = response.json()
     assert res_data["status"] == "accepted_raw_queued"
@@ -123,7 +123,7 @@ def test_ingest_raw_fallback(mock_lpush):
 
 @patch("utils.queue.redis_client.lpush_bounded")
 def test_ingest_valid_standard_log(mock_lpush):
-    response = client.post("/ingest", json={"log_data": "[2026-05-16 10:30:00] ERROR: auth-service failed"})
+    response = client.post("/ingest", headers={"X-API-Key": "test-api-key-12345"}, json={"log_data": "[2026-05-16 10:30:00] ERROR: auth-service failed"})
     assert response.status_code == 200
     data = response.json()
     assert data["status"] == "success_queued"
@@ -135,8 +135,9 @@ def test_ingest_valid_standard_log(mock_lpush):
 @patch("utils.queue.redis_client.lpush_bounded")
 def test_ingest_structured_log(mock_lpush):
     response = client.post(
-        "/ingest",
-        json={
+            "/ingest",
+            headers={"X-API-Key": "test-api-key-12345"},
+            json={
             "timestamp": "2026-05-16 10:30:00",
             "level": "warning",
             "service": "auth-service",
@@ -166,8 +167,9 @@ def test_ingest_structured_log(mock_lpush):
 @patch("utils.queue.redis_client.lpush_bounded")
 def test_ingest_batch_structured_logs(mock_lpush):
     response = client.post(
-        "/ingest",
-        json={
+            "/ingest",
+            headers={"X-API-Key": "test-api-key-12345"},
+            json={
             "logs": [
                 {
                     "timestamp": "2026-05-16T10:30:00Z",
@@ -193,8 +195,9 @@ def test_ingest_batch_structured_logs(mock_lpush):
 
 def test_ingest_structured_validation_error():
     response = client.post(
-        "/ingest",
-        json={
+            "/ingest",
+            headers={"X-API-Key": "test-api-key-12345"},
+            json={
             "timestamp": "2026-05-16 10:30:00",
             "level": "INFO",
             "service": "auth-service",
@@ -204,14 +207,15 @@ def test_ingest_structured_validation_error():
 
 
 def test_ingest_batch_empty_validation_error():
-    response = client.post("/ingest", json={"logs": []})
+    response = client.post("/ingest", headers={"X-API-Key": "test-api-key-12345"}, json={"logs": []})
     assert response.status_code == 422
 
 
 def test_ingest_structured_requires_service_id():
     response = client.post(
-        "/ingest",
-        json={
+            "/ingest",
+            headers={"X-API-Key": "test-api-key-12345"},
+            json={
             "timestamp": "2026-05-16 10:30:00",
             "level": "INFO",
             "message": "structured log without service id",
@@ -224,8 +228,9 @@ def test_ingest_structured_requires_service_id():
 @patch("utils.queue.redis_client.lpush_bounded")
 def test_ingest_structured_accepts_service_id_field(mock_lpush):
     response = client.post(
-        "/ingest",
-        json={
+            "/ingest",
+            headers={"X-API-Key": "test-api-key-12345"},
+            json={
             "timestamp": "2026-05-16 10:30:00",
             "level": "ERROR",
             "service_id": "payments-api",
@@ -332,8 +337,9 @@ def test_batch_ingestion_partial_success(mock_lpush):
     }
 
     response = client.post(
-        "/ingest",
-        json=payload,
+            "/ingest",
+            headers={"X-API-Key": "test-api-key-12345"},
+            json=payload,
     )
 
     assert response.status_code == 200
@@ -367,8 +373,9 @@ def test_batch_ingestion_full_success(mock_lpush):
     }
 
     response = client.post(
-        "/ingest",
-        json=payload,
+            "/ingest",
+            headers={"X-API-Key": "test-api-key-12345"},
+            json=payload,
     )
 
     assert response.status_code == 200
