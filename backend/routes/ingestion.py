@@ -4,6 +4,7 @@ from fastapi import APIRouter, Body, Depends, HTTPException
 from pydantic import ValidationError
 from utils.parser import PARSER_METRICS
 from core.settings import get_settings
+from dependencies import verify_api_key
 from schemas.ingestion import parse_ingest_request, validation_errors_to_detail
 from services.ingestion import IngestionService
 from utils.redaction import build_default_redactor
@@ -31,6 +32,7 @@ def get_ingestion_service() -> IngestionService:
 async def ingest_logs(
     payload: dict = Body(...),
     ingestion_service: IngestionService = Depends(get_ingestion_service),
+    api_key: str = Depends(verify_api_key),
 ):
     try:
         request_model = parse_ingest_request(payload)
@@ -49,6 +51,7 @@ async def ingest_logs(
 async def ingest_otel_logs(
     payload: dict = Body(...),
     ingestion_service: IngestionService = Depends(get_ingestion_service),
+    api_key: str = Depends(verify_api_key),
 ):
     return ingestion_service.ingest_otel_logs(payload)
 
