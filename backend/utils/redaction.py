@@ -3,6 +3,7 @@ redaction.py - Scrub common secrets and PII from log strings before
 they reach the parser, queue, or downstream services.
 """
 
+import math
 import re
 from copy import deepcopy
 from dataclasses import dataclass, field
@@ -97,6 +98,44 @@ def _luhn_valid(digits: str) -> bool:
     return total % 10 == 0
 
 
+def _shannon_entropy(text: str) -> float:
+    """
+    Calculate Shannon entropy (bits per byte) for a string.
+    High entropy (>4.0) suggests base64/compressed/encrypted data.
+    """
+    if not text or len(text) < 4:
+        return 0.0
+
+    freq = {}
+    for char in text:
+        freq[char] = freq.get(char, 0) + 1
+
+    entropy = 0.0
+    for count in freq.values():
+        p = count / len(text)
+        entropy -= p * math.log2(p)
+
+    return entropy
+
+
+def _find_high_entropy_tokens(text: str, entropy_threshold: float = 4.5) -> list[str]:
+    """
+    Extract tokens from text and return those with entropy above threshold.
+    Tokens are split by whitespace and common delimiters.
+    """
+    if not text:
+        return []
+
+    tokens = re.findall(r'\b[A-Za-z0-9_\-\.]{8,}\b', text)
+    high_entropy = []
+
+    for token in tokens:
+        if _shannon_entropy(token) >= entropy_threshold:
+            high_entropy.append(token)
+
+    return high_entropy
+
+
 class Redactor:
     def __init__(
         self,
@@ -154,6 +193,19 @@ class Redactor:
                         f"[REDACTED:{rule.label}]",
                         text
                     )
+
+        high_entropy_tokens = _find_high_entropy_tokens(text)
+        if high_entropy_tokens:
+            entropy_count = 0
+            for token in high_entropy_tokens:
+                if token not in text or "[REDACTED:" in token:
+                    continue
+                text = text.replace(token, "[REDACTED:ENTROPY_ANOMALY]", 1)
+                entropy_count += 1
+
+            if entropy_count > 0:
+                matches["ENTROPY_ANOMALY"] = entropy_count
+                _increment_metric("total_redactions")
 
         if matches:
             _increment_metric("payloads_sanitized")

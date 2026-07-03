@@ -16,48 +16,6 @@ total_logs_ingested: int = 0
 
 app = create_app()
 
-@app.post("/ingest")
-async def ingest_logs(log_data: str = Body(..., embed=True)):
-    """
-    Accepts raw log strings, parses them into structured data,
-    and pushes the payload to the Redis queue for asynchronous processing.
-    """
-    if not log_data or not log_data.strip():
-        raise HTTPException(status_code=400, detail="Log message cannot be empty")
-
-    parsed = LogParser.parse_line(log_data)
-    if not parsed:
-        return {"status": "accepted_raw", "message": log_data}
-
-    metadata = parsed.get("metadata", {})
-
-    payload = {
-        "parsed": parsed,
-        "metadata": metadata
-    }
-
-    try:
-        redis_client.lpush("log_queue", json.dumps(payload))
-    except Exception:
-        pass  # Redis unavailable — continue without queuing
-
-    global total_logs_ingested
-    total_logs_ingested += 1
-    log_store.append({
-        "timestamp": parsed.get("timestamp", ""),
-        "level": parsed.get("level", "INFO"),
-        "message": parsed.get("message", ""),
-        "service": parsed.get("metadata", {}).get("service", "unknown")
-    })
-    if len(log_store) > 500:
-        log_store.pop(0)
-
-    return {
-        "status": "success_queued",
-        "parsed": parsed,
-        "metadata": metadata
-    }
-
 @app.get("/metrics/parser")
 async def parser_metrics():
     return {

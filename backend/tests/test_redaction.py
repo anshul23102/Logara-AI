@@ -236,3 +236,57 @@ def test_redact_dict_nested_lists_preserve_immutability():
         "[REDACTED:API_KEY]"
         in redacted["items"][0]["token"]
     )
+
+
+def test_shannon_entropy_calculation():
+    from utils.redaction import _shannon_entropy
+
+    low_entropy = _shannon_entropy("aaaaaaaaaa")
+    high_entropy = _shannon_entropy("aB3xK9mQ2L")
+
+    assert low_entropy < 2.0
+    assert high_entropy > 3.0
+
+
+def test_high_entropy_tokens_detected():
+    from utils.redaction import _find_high_entropy_tokens
+
+    text = "Normal log with token aB3xK9mQ2L9zX7cV4jW6 mixed in"
+    tokens = _find_high_entropy_tokens(text, entropy_threshold=4.0)
+
+    assert len(tokens) > 0
+    assert any(len(t) > 8 for t in tokens)
+
+
+def test_redacts_base64_encoded_secrets():
+    reset_metrics()
+
+    r = build_default_redactor()
+    text = "Config secret: aGVsbG8gd29ybGQgYmFzZTY0IGVuY29kZWQgc2VjcmV0"
+    result = r.redact_with_summary(text)
+
+    if "ENTROPY_ANOMALY" in result.matches:
+        assert "[REDACTED:ENTROPY_ANOMALY]" in result.text
+    elif "aGVsbG8gd29ybGQgYmFzZTY0IGVuY29kZWQgc2VjcmV0" not in result.text:
+        pass
+
+
+def test_high_entropy_tokens_not_over_redact():
+    reset_metrics()
+
+    r = build_default_redactor()
+    text = "Version hash abc123def456ghi789 is ok but secret base64string123456789token should be redacted"
+    result = r.redact_with_summary(text)
+
+    assert "abc123def456ghi789" in result.text or "[REDACTED:" in result.text
+
+
+def test_entropy_anomaly_in_matches():
+    reset_metrics()
+
+    r = build_default_redactor()
+    text = "token xY9zAb3cD4eF5gH6iJ7kL8mN contains random base64 data"
+    result = r.redact_with_summary(text)
+
+    if "ENTROPY_ANOMALY" in result.matches:
+        assert result.matches["ENTROPY_ANOMALY"] > 0

@@ -24,11 +24,13 @@ class Settings(BaseSettings):
         "Backend for ingestion and analysis of distributed system logs"
     )
     app_version: str = "0.1.0"
+    api_key: str | None = None
     redis_queue_name: str = "log_queue"
 
     redis_host: str = "localhost"
     redis_port: int = 6379
     redis_password: str | None = None
+    redis_max_queue_length: int = 10_000
 
     qdrant_url: str = "http://localhost:6333"
     qdrant_timeout_seconds: float = 3.0

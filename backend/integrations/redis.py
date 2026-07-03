@@ -54,6 +54,25 @@ class RedisQueueClient:
     def lpush(self, queue_name: str, payload: str):
         return self.client.lpush(queue_name, payload)
 
+    def ltrim(self, queue_name: str, start: int, end: int):
+        return self.client.ltrim(queue_name, start, end)
+
+    def lpush_bounded(self, queue_name: str, payload: str, max_length: int):
+        """
+        Push a payload onto the queue and trim it to at most `max_length`
+        entries, keeping the most recently pushed items.
+
+        Without this, a slow or crashed worker lets the queue grow without
+        bound: Redis's `noeviction` default then blocks all writes once the
+        memory limit is hit, and even with an `allkeys-lru` policy Redis
+        evicts entire keys (dropping the whole queue at once) rather than
+        trimming individual list entries. Bounding the list length here
+        keeps growth predictable and prevents ingestion from stalling.
+        """
+        push_result = self.lpush(queue_name, payload)
+        self.ltrim(queue_name, 0, max_length - 1)
+        return push_result
+
     def brpop(self, queue_name: str, timeout: int = 0):
         return self.client.brpop(queue_name, timeout=timeout)
 

@@ -63,6 +63,7 @@ def isolated_env_vars(monkeypatch: pytest.MonkeyPatch) -> None:
 
     monkeypatch.setenv("OPENAI_API_KEY", "sk-test-mock-key-do-not-use")
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-mock-key")
+    monkeypatch.setenv("API_KEY", "test-api-key-12345")
 
 
 # -------------------------------------------------------------------------
@@ -142,7 +143,34 @@ ROOT_DIR = Path(__file__).resolve().parents[1]
 @pytest.fixture
 def anyio_backend() -> str:
     """
-    Configuration for AnyIO, enabling asynchronous testing support for FastAPI 
+    Configuration for AnyIO, enabling asynchronous testing support for FastAPI
     routers and async background tasks. Defaults to using asyncio.
     """
     return "asyncio"
+
+
+@pytest.fixture
+def api_key_header() -> dict:
+    """
+    Provide valid API key header for authenticated endpoints.
+    """
+    return {"X-API-Key": "test-api-key-12345"}
+
+
+@pytest.fixture(autouse=True)
+def override_auth_dependency() -> None:
+    """
+    Override API key dependency to always pass during tests.
+    This allows testing endpoints without needing to provide valid API keys.
+    """
+    from main import app
+    from dependencies import verify_api_key
+
+    async def mock_verify_api_key(x_api_key: str = None) -> str:
+        return "test-api-key-12345"
+
+    app.dependency_overrides[verify_api_key] = mock_verify_api_key
+
+    yield
+
+    app.dependency_overrides.clear()
