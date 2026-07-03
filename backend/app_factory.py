@@ -17,6 +17,7 @@ from services.ingestion import IngestionService
 from services.log_service import LogService
 from utils.ollama_manager import OllamaModelManager
 from utils.redaction import build_default_redactor
+from worker import init_qdrant_collection
 
 
 @asynccontextmanager
@@ -35,6 +36,9 @@ async def lifespan(app: FastAPI):
     # Initialize Ollama manager for model bootstrap
     app.state.ollama_manager = OllamaModelManager()
     await app.state.ollama_manager.bootstrap()
+
+    # Initialize Qdrant collection for vector storage
+    init_qdrant_collection(qdrant_client, settings.qdrant_collection)
 
     yield
     qdrant_client.close()

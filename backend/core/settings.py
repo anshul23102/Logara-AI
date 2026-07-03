@@ -29,6 +29,7 @@ class Settings(BaseSettings):
     redis_host: str = "localhost"
     redis_port: int = 6379
     redis_password: str | None = None
+    redis_max_queue_length: int = 10_000
 
     qdrant_url: str = "http://localhost:6333"
     qdrant_timeout_seconds: float = 3.0
