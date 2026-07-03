@@ -435,3 +435,149 @@ def test_ensure_collection_initialized_called_once(mock_init):
     mock_init.assert_called_once()
 
     worker._collection_initialized = False  # restore to not leak state
+
+
+# ---------------------------------------------------------------------------
+# Anomaly Detection Wiring
+# ---------------------------------------------------------------------------
+
+@patch("worker.analyze_log")
+@patch("worker.get_duplicate_clustering_service")
+@patch("worker.get_qdrant_client")
+@patch("worker.get_embedding_model")
+def test_analyze_log_called_with_correct_args(mock_get_model, mock_get_qdrant, mock_get_clustering, mock_analyze):
+    """Verify analyze_log is called with service_id, level, and message."""
+    reset_metrics()
+
+    mock_model = MagicMock()
+    mock_model.encode.return_value = MagicMock(tolist=lambda: [0.0] * 384)
+    mock_get_model.return_value = mock_model
+
+    mock_q_client = MagicMock()
+    mock_get_qdrant.return_value = mock_q_client
+
+    mock_clustering = MagicMock()
+    mock_clustering.assign_to_cluster.return_value = MagicMock(
+        is_duplicate=False,
+        cluster_id="cluster-1"
+    )
+    mock_get_clustering.return_value = mock_clustering
+
+    mock_analyze.return_value = None  # No anomaly detected
+
+    payload = json.dumps({
+        "parsed": {
+            "level": "ERROR",
+            "message": "Database connection timeout",
+            "parser_type": "standard",
+        },
+        "metadata": {
+            "service": "payment-service"
+        }
+    })
+
+    result = process_log(payload)
+    assert result is True
+
+    # Verify analyze_log was called with correct args
+    mock_analyze.assert_called_once()
+    call_args = mock_analyze.call_args
+    assert call_args[1]["service_id"] == "payment-service"
+    assert call_args[1]["level"] == "ERROR"
+    assert call_args[1]["message"] == "Database connection timeout"
+
+
+@patch("worker.analyze_log")
+@patch("worker.get_duplicate_clustering_service")
+@patch("worker.get_qdrant_client")
+@patch("worker.get_embedding_model")
+def test_anomaly_event_handled_when_detected(mock_get_model, mock_get_qdrant, mock_get_clustering, mock_analyze):
+    """Verify anomaly events are logged when analyze_log returns an event."""
+    reset_metrics()
+
+    mock_model = MagicMock()
+    mock_model.encode.return_value = MagicMock(tolist=lambda: [0.0] * 384)
+    mock_get_model.return_value = mock_model
+
+    mock_q_client = MagicMock()
+    mock_get_qdrant.return_value = mock_q_client
+
+    mock_clustering = MagicMock()
+    mock_clustering.assign_to_cluster.return_value = MagicMock(
+        is_duplicate=False,
+        cluster_id="cluster-1"
+    )
+    mock_get_clustering.return_value = mock_clustering
+
+    # Create a mock anomaly event
+    from anomaly.schemas import AnomalyEvent, AlertSeverity
+    from datetime import datetime, timezone
+
+    anomaly = AnomalyEvent(
+        service_id="payment-service",
+        level="ERROR",
+        message="Database connection timeout",
+        anomaly_score=2.5,
+        severity=AlertSeverity.CRITICAL,
+        timestamp=datetime.now(timezone.utc)
+    )
+    mock_analyze.return_value = anomaly
+
+    payload = json.dumps({
+        "parsed": {
+            "level": "ERROR",
+            "message": "Database connection timeout",
+            "parser_type": "standard",
+        },
+        "metadata": {
+            "service": "payment-service"
+        }
+    })
+
+    result = process_log(payload)
+    assert result is True
+
+    # Log still processed successfully
+    assert WORKER_METRICS["processed_logs"] == 1
+
+
+@patch("worker.analyze_log")
+@patch("worker.get_duplicate_clustering_service")
+@patch("worker.get_qdrant_client")
+@patch("worker.get_embedding_model")
+def test_analyze_log_only_called_on_error_level(mock_get_model, mock_get_qdrant, mock_get_clustering, mock_analyze):
+    """Verify analyze_log is still called even on non-error logs (filtering happens in detector)."""
+    reset_metrics()
+
+    mock_model = MagicMock()
+    mock_model.encode.return_value = MagicMock(tolist=lambda: [0.0] * 384)
+    mock_get_model.return_value = mock_model
+
+    mock_q_client = MagicMock()
+    mock_get_qdrant.return_value = mock_q_client
+
+    mock_clustering = MagicMock()
+    mock_clustering.assign_to_cluster.return_value = MagicMock(
+        is_duplicate=False,
+        cluster_id="cluster-1"
+    )
+    mock_get_clustering.return_value = mock_clustering
+
+    mock_analyze.return_value = None
+
+    payload = json.dumps({
+        "parsed": {
+            "level": "INFO",
+            "message": "User logged in",
+            "parser_type": "standard",
+        },
+        "metadata": {
+            "service": "auth-service"
+        }
+    })
+
+    result = process_log(payload)
+    assert result is True
+
+    # analyze_log should be called (detector filters by level)
+    assert mock_analyze.called

@@ -293,6 +293,17 @@ def process_log(payload_str: str) -> bool:
             # → 'unknown_service' sentinel when no service is identified.
             service_id = _extract_service_id(metadata)
 
+            anomaly_event = analyze_log(
+                service_id=service_id,
+                level=level,
+                message=message,
+            )
+            if anomaly_event:
+                logger.warning(
+                    f"Anomaly event detected: service={service_id}, "
+                    f"score={anomaly_event.anomaly_score}, severity={anomaly_event.severity}"
+                )
+
             clustering_service = get_duplicate_clustering_service()
             decision = clustering_service.assign_to_cluster(
                 log_text=message,
